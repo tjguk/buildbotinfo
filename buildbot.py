@@ -1,5 +1,8 @@
 #!python
 # -*- coding: utf-8 -*-
+"""Provide simple object support for the builders and builds
+in a buildbot, using the XMLRPC interface.
+"""
 import os, sys
 import collections
 import datetime
@@ -105,6 +108,7 @@ class Buildbot(object):
                 yield self.builder(name)
 
 def main(url='http://buildbot.python.org/', pattern="*"):
+    logging.getLogger("buildbot").addHandler(logging.NullHandler)
     for builder in Buildbot(url).builders(pattern):
         print(builder)
 
