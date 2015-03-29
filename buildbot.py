@@ -11,9 +11,13 @@ import logging
 try:
     # Python 2.x
     import xmlrpclib
+    from urlparse import urljoin
+    from urllib2 import quote as urlquote
 except ImportError:
     # Python 3.x
     import xmlrpc.client as xmlrpclib
+    from urllib.parse import quote as urlquote
+    from urllib.parse import urljoin
 
 logger = logging.getLogger("buildbot")
 logger.setLevel(logging.DEBUG)
@@ -23,6 +27,7 @@ class Build(object):
     def __init__(self, builder, **kwargs):
         self.builder = builder
         self.sequence = kwargs.pop("sequence")
+        self.url = "%s/builds/%d" % (self.builder.url, self.sequence)
         self._info = kwargs
 
     def __getattr__(self, attr):
@@ -37,16 +42,21 @@ class Build(object):
         return "%s: %s" % (self, ", ".join(litems))
 
     def __eq__(self, other):
+        if other is None: return False
         return self.builder == other.builder and self.sequence == other.sequence
 
     def __hash__(self):
         return hash((self.builder, self.name))
+
+    def __iter__(self):
+        return iter(self._info.items())
 
 class Builder(object):
 
     def __init__(self, buildbot, name):
         self.name = name
         self.buildbot = buildbot
+        self.url = "%s/all/builders/%s" % (self.buildbot.url, urlquote(self.name))
 
     def __repr__(self):
         return "<%s: %s on %s>" % (self.__class__.__name__, self.name, self.buildbot)
@@ -55,6 +65,7 @@ class Builder(object):
         return self.name
 
     def __eq__(self, other):
+        if other is None: return False
         return self.buildbot == other.buildbot and self.name == other.name
 
     def __hash__(self):
@@ -79,8 +90,9 @@ class Builder(object):
 
 class Buildbot(object):
 
-    def __init__(self, url):
-        self.url = self.name = url
+    def __init__(self, url, repo_url=None):
+        self.url = self.name = url.rstrip("/") + "/"
+        self.repo_url = repo_url.rstrip("/") + "/"
         self._proxy = xmlrpclib.ServerProxy(self.url + "all/xmlrpc")
 
     def __repr__(self):
@@ -93,6 +105,7 @@ class Buildbot(object):
         return self.builders()
 
     def __eq__(self, other):
+        if other is None: return False
         return self.name == other.name
 
     def __hash__(self):
@@ -108,7 +121,6 @@ class Buildbot(object):
                 yield self.builder(name)
 
 def main(url='http://buildbot.python.org/', pattern="*"):
-    logging.getLogger("buildbot").addHandler(logging.NullHandler)
     for builder in Buildbot(url).builders(pattern):
         print(builder)
 

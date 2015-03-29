@@ -3,6 +3,7 @@
 from __future__ import print_function
 import os, sys
 import datetime
+import json
 import logging
 
 from bottle import route, run, template, request, response
@@ -15,6 +16,7 @@ buildbot_logger.addHandler(logging.StreamHandler())
 # Default params
 #
 BUILDBOT_URL = "http://buildbot.python.org/"
+REPO_URL = "http://hg.python.org/cpython/"
 PATTERN = "*"
 ONLY_FAILURES = False
 SINCE_MINUTES = None
@@ -32,16 +34,12 @@ def index():
     builders = python_buildbot.builders("*" + pattern + "*")
     builds = []
     for builder in builders:
-        print("Looking at", builder)
         latest_build = builder.last_build()
         if latest_build is None:
-            print("No build")
             continue
         if only_failures and latest_build.result == "success":
-            print("Succeeded; failures only")
             continue
         if latest_build.finished_at < since:
-            print("Finished at", latest_build.finished_at, "wanted", since)
             continue
         builds.append(latest_build)
 
@@ -75,6 +73,15 @@ def with_mimetype(mimetype):
         return _with_mimetype
     return _decorator
 
+def as_code(name, separator="-"):
+    return separator.join(name.lower().split())
+
+def jsonify(obj):
+    if isinstance(obj, datetime.datetime):
+        return obj.isoformat()
+    else:
+        return obj
+
 class Builds(object):
     """Take an iterable of builds (typically from get_builds) and
     allow them to be output in different formats, each with the
@@ -97,6 +104,62 @@ class Builds(object):
     def output_as(self, format):
         return getattr(self, "as_" + format)()
 
+    @with_mimetype("application/json")
+    def as_json(self):
+        return json.dumps(
+            [(b.builder.buildbot.name, b.builder.name, b.sequence, dict(b)) for b in self.builds],
+            default=jsonify
+        )
+
+    @with_mimetype("text/html")
+    def as_html(self):
+        def _lines():
+            yield "<!DOCTYPE html>"
+            yield "<meta charset=utf-8>"
+            yield "<html>"
+            yield "<head>"
+            yield "<title>Buildbot Info</title>"
+            yield """<style>
+body {font-family : Tahoma, Helvetica, sans-serif;}
+.outcome {font-variant : small-caps; font-weight : bold;}
+.success {background-color : green; color : white;}
+.failure {background-color : red; color : white;}
+li.build {padding-bottom : 0.333em;}
+</style>
+            """
+            yield "</head>"
+            yield "<body>"
+
+            bb = builder = None
+            for build in self.builds:
+                if build.builder.buildbot != bb:
+                    bb = build.builder.buildbot
+                    yield "<h1>Builds for %s</h1>" % bb.name
+                if build.builder != builder:
+                    if builder is not None:
+                        yield "</ul>"
+                        yield "</div>"
+                    builder = build.builder
+                    yield '<div class="builder" id="%s">' % (as_code(builder.name))
+                    yield '<h2><a href="%s">%s</a></h2>' % (builder.url, builder.name)
+                    yield "<ul>"
+                yield '<li class="build"><span class="outcome %s">%s</span> <a href="%s">Build %d</a> on branch %s <a href="%s">rev %s</a> at %s<br></li>' % (
+                    build.result.lower(),
+                    build.result.upper(),
+                    build.url, build.sequence,
+                    build.branch,
+                    (build.builder.buildbot.repo_url + "/rev/" + build.revision) if build.builder.buildbot.repo_url else "#", build.revision,
+                    build.finished_at.strftime(self.TIMESTAMP_FORMAT)
+                )
+
+            if builder is not None:
+                yield "</ul>"
+                yield "</div>"
+            yield "</body>"
+            yield "</html>"
+
+        return "\n".join(_lines())
+
     @with_mimetype("text/plain")
     def as_text(self):
         def _lines():
@@ -117,16 +180,17 @@ class Builds(object):
                     build.sequence, build.branch, build.revision,
                     build.finished_at.strftime(self.TIMESTAMP_FORMAT)
                 )
-                for stage, result in build.reasons:
-                    yield "  %s: %s" % (stage, result)
 
         return "\n".join(_lines())
 
-def get_builds(buildbot_url, pattern, only_failures, since_minutes, latest_n_builds):
-    """Generate the latest build for each builder under `buildbot_url`
+def get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, latest_n_builds):
+    """Generate the `latest_n_builds` for each builder under `buildbot_url`
     if it matches `pattern`, limiting to failures if requested, and
     only considering results in the last `since_minutes` in an attempt to
-    skip dead buildbots
+    skip dead buildbots.
+
+    It is assumed that the parameters have already been converted from their
+    web or command-line versions to they now contain their expected datatypes.
     """
     #
     # A pattern coming from the command line or web interface
@@ -136,15 +200,13 @@ def get_builds(buildbot_url, pattern, only_failures, since_minutes, latest_n_bui
         patterns = pattern
     else:
         patterns = [pattern]
-    print("patterns:", patterns)
     if since_minutes is None:
         since = datetime.datetime.min
     else:
         since = datetime.datetime.now() - datetime.timedelta(minutes=int(since_minutes))
-    bb = buildbot.Buildbot(buildbot_url)
+    bb = buildbot.Buildbot(buildbot_url, repo_url)
     for pattern in patterns:
         builders = bb.builders(pattern)
-        print("Looking for builders on %s matching %s since %s" % ( bb, pattern, since))
         for builder in builders:
             for build in builder.last_n_builds(latest_n_builds):
                 if build is None:
@@ -157,22 +219,22 @@ def get_builds(buildbot_url, pattern, only_failures, since_minutes, latest_n_bui
 
 def cli(
     buildbot_url=BUILDBOT_URL,
+    repo_url=REPO_URL,
     pattern=PATTERN,
     only_failures=ONLY_FAILURES,
     since_minutes=SINCE_MINUTES,
     latest_n_builds=LATEST_N_BUILDS,
     output_as="text"
 ):
-    print("pattern:", pattern)
-    builds = Builds(get_builds(buildbot_url, pattern, only_failures, since_minutes, latest_n_builds))
+    builds = Builds(get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, latest_n_builds))
     mimetype, output = builds.output_as(output_as)
-    print(mimetype)
     print(output)
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser("Show Buildbot info")
     parser.add_argument("--buildbot-url", dest="buildbot_url", default=BUILDBOT_URL)
+    parser.add_argument("--repo-url", dest="repo_url", default=REPO_URL)
     parser.add_argument("--pattern", dest="pattern", nargs="*", default=PATTERN)
     parser.add_argument("--only-failures", type=bool, dest="only_failures", default=ONLY_FAILURES)
     parser.add_argument("--since-minutes", type=int, dest="since_minutes", default=SINCE_MINUTES)
