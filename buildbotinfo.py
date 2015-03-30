@@ -8,7 +8,7 @@ import logging
 
 from bottle import route, run, template, request, response
 
-import buildbot
+import buildbotkuv
 buildbot_logger = logging.getLogger("buildbot")
 buildbot_logger.addHandler(logging.StreamHandler())
 
@@ -30,7 +30,7 @@ def index():
     only_failures = bool(int(params.get("only-failures", 0)))
     since_minutes = params.get("since-minutes")
 
-    python_buildbot = buildbot.Buildbot(buildbot_url)
+    python_buildbot = buildbotlib.Buildbot(buildbot_url)
     builders = python_buildbot.builders("*" + pattern + "*")
     builds = []
     for builder in builders:
@@ -204,7 +204,7 @@ def get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, la
         since = datetime.datetime.min
     else:
         since = datetime.datetime.now() - datetime.timedelta(minutes=int(since_minutes))
-    bb = buildbot.Buildbot(buildbot_url, repo_url)
+    bb = buildbotlib.Buildbot(buildbot_url, repo_url)
     for pattern in patterns:
         builders = bb.builders(pattern)
         for builder in builders:
