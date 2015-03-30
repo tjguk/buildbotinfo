@@ -90,7 +90,7 @@ class Builder(object):
 
 class Buildbot(object):
 
-    def __init__(self, url, repo_url=None):
+    def __init__(self, url, repo_url=""):
         self.url = self.name = url.rstrip("/") + "/"
         self.repo_url = repo_url.rstrip("/") + "/"
         self._proxy = xmlrpclib.ServerProxy(self.url + "all/xmlrpc")
@@ -120,9 +120,8 @@ class Buildbot(object):
             if fnmatch.fnmatch(name, pattern):
                 yield self.builder(name)
 
-def main(url='http://buildbot.python.org/', pattern="*"):
-    for builder in Buildbot(url).builders(pattern):
+if __name__ == "__main__":
+    logging.getLogger("buildbot").addHandler(logging.NullHandler())
+    for builder in Buildbot('http://buildbot.python.org/'):
         print(builder)
 
-if __name__ == "__main__":
-    main(*sys.argv[1:])
