@@ -8,9 +8,7 @@ import logging
 
 from bottle import route, run, template, request, response
 
-import buildbotkuv
-buildbot_logger = logging.getLogger("buildbot")
-buildbot_logger.addHandler(logging.StreamHandler())
+import buildbotlib
 
 #
 # Default params
@@ -18,7 +16,7 @@ buildbot_logger.addHandler(logging.StreamHandler())
 BUILDBOT_URL = "http://buildbot.python.org/"
 REPO_URL = "http://hg.python.org/cpython/"
 PATTERN = "*"
-ONLY_FAILURES = False
+STATUS = None
 SINCE_MINUTES = None
 LATEST_N_BUILDS = 1
 OUTPUT_AS = "text"
@@ -183,7 +181,7 @@ li.build {padding-bottom : 0.333em;}
 
         return "\n".join(_lines())
 
-def get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, latest_n_builds):
+def get_builds(buildbot_url, repo_url, pattern, status, since_minutes, latest_n_builds):
     """Generate the `latest_n_builds` for each builder under `buildbot_url`
     if it matches `pattern`, limiting to failures if requested, and
     only considering results in the last `since_minutes` in an attempt to
@@ -193,17 +191,16 @@ def get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, la
     web or command-line versions to they now contain their expected datatypes.
     """
     #
-    # A pattern coming from the command line or web interface
-    # can be a list of patterns whose results should be combined
+    # A pattern or a status coming from the command line or web interface
+    # can be a list whose results should be combined
     #
-    if isinstance(pattern, list):
-        patterns = pattern
-    else:
-        patterns = [pattern]
+    patterns = pattern if isinstance(pattern, list) else [pattern]
+    statuses = set(status if isinstance(status, list) else [status])
     if since_minutes is None:
         since = datetime.datetime.min
     else:
         since = datetime.datetime.now() - datetime.timedelta(minutes=int(since_minutes))
+
     bb = buildbotlib.Buildbot(buildbot_url, repo_url)
     for pattern in patterns:
         builders = bb.builders(pattern)
@@ -211,7 +208,7 @@ def get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, la
             for build in builder.last_n_builds(latest_n_builds):
                 if build is None:
                     continue
-                if only_failures and build.result == "success":
+                if statuses and build.result not in statuses:
                     continue
                 if build.finished_at < since:
                     continue
@@ -221,22 +218,23 @@ def cli(
     buildbot_url=BUILDBOT_URL,
     repo_url=REPO_URL,
     pattern=PATTERN,
-    only_failures=ONLY_FAILURES,
+    status=STATUS,
     since_minutes=SINCE_MINUTES,
     latest_n_builds=LATEST_N_BUILDS,
     output_as="text"
 ):
-    builds = Builds(get_builds(buildbot_url, repo_url, pattern, only_failures, since_minutes, latest_n_builds))
+    builds = Builds(get_builds(buildbot_url, repo_url, pattern, status or [], since_minutes, latest_n_builds))
     mimetype, output = builds.output_as(output_as)
     print(output)
 
 if __name__ == "__main__":
+    logging.getLogger("buildbot").addHandler(logging.StreamHandler())
     import argparse
     parser = argparse.ArgumentParser("Show Buildbot info")
     parser.add_argument("--buildbot-url", dest="buildbot_url", default=BUILDBOT_URL)
     parser.add_argument("--repo-url", dest="repo_url", default=REPO_URL)
     parser.add_argument("--pattern", dest="pattern", nargs="*", default=PATTERN)
-    parser.add_argument("--only-failures", type=bool, dest="only_failures", default=ONLY_FAILURES)
+    parser.add_argument("--status", dest="status", nargs="*")
     parser.add_argument("--since-minutes", type=int, dest="since_minutes", default=SINCE_MINUTES)
     parser.add_argument("--latest-n-builds", type=int, dest="latest_n_builds", default=LATEST_N_BUILDS)
     parser.add_argument("--output-as", type=str, dest="output_as", default=OUTPUT_AS)
