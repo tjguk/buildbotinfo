@@ -14,7 +14,7 @@ import buildbotlib
 BUILDBOT_URL = "http://buildbot.python.org/"
 REPO_URL = "http://hg.python.org/cpython/"
 PATTERN = "*"
-STATUS = None
+ALWAYS_STATUS = None
 SINCE_MINUTES = None
 LATEST_N_BUILDS = 1
 OUTPUT_AS = "text"
@@ -81,6 +81,8 @@ body {font-family : Tahoma, Helvetica, sans-serif;}
 .outcome {font-variant : small-caps; font-weight : bold;}
 .success {background-color : green; color : white;}
 .failure {background-color : red; color : white;}
+.exception {background-color : darkred; color : white;}
+.retry {background-color : orange; color : white;}
 li.build {padding-bottom : 0.333em;}
 </style>
             """
@@ -91,7 +93,7 @@ li.build {padding-bottom : 0.333em;}
             for build in self.builds:
                 if build.builder.buildbot != bb:
                     bb = build.builder.buildbot
-                    yield "<h1>Builds for %s</h1>" % bb.name
+                    yield '<h1>Builds for <a href="{url}">{url}</a> against <a href="{repo_url}">{repo_url}</a></h1>'.format(url=bb.url, repo_url=bb.repo_url)
                 if build.builder != builder:
                     if builder is not None:
                         yield "</ul>"
@@ -140,7 +142,7 @@ li.build {padding-bottom : 0.333em;}
 
         return "\n".join(_lines())
 
-def get_builds(buildbot_url, repo_url, pattern, status, since_minutes, latest_n_builds):
+def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, latest_n_builds):
     """Generate the `latest_n_builds` for each builder under `buildbot_url`
     if it matches `pattern`, limiting to failures if requested, and
     only considering results in the last `since_minutes` in an attempt to
@@ -154,7 +156,7 @@ def get_builds(buildbot_url, repo_url, pattern, status, since_minutes, latest_n_
     # can be a list whose results should be combined
     #
     patterns = pattern if isinstance(pattern, list) else [pattern]
-    statuses = set(status if isinstance(status, list) else [status])
+    always_statuses = set(always_status if isinstance(always_status, list) else [always_status])
     if since_minutes is None:
         since = datetime.datetime.min
     else:
@@ -164,25 +166,36 @@ def get_builds(buildbot_url, repo_url, pattern, status, since_minutes, latest_n_
     for pattern in patterns:
         builders = bb.builders(pattern)
         for builder in builders:
+            builds = []
             for build in builder.last_n_builds(latest_n_builds):
                 if build is None:
                     continue
-                if statuses and build.result not in statuses:
-                    continue
                 if build.finished_at < since:
                     continue
-                yield build
+                builds.append(build)
+            
+            #
+            # If a set of "always status" has been specified, then only return the builds
+            # if the status for all of them matches at least one of the set. 
+            # This would most commonly be used for checking long-term red buildbots
+            # (including FAIL, EXCEPTION and perhaps RETRY)
+            #
+            if always_status and not all(build.result in always_status for build in builds):
+                continue
+            else:
+                for b in builds:
+                    yield b
 
 def cli(
     buildbot_url=BUILDBOT_URL,
     repo_url=REPO_URL,
     pattern=PATTERN,
-    status=STATUS,
+    always_status=ALWAYS_STATUS,
     since_minutes=SINCE_MINUTES,
     latest_n_builds=LATEST_N_BUILDS,
     output_as="text"
 ):
-    builds = Builds(get_builds(buildbot_url, repo_url, pattern, status or [], since_minutes, latest_n_builds))
+    builds = Builds(get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, latest_n_builds))
     mimetype, output = builds.output_as(output_as)
     print(output)
 
@@ -193,7 +206,7 @@ if __name__ == "__main__":
     parser.add_argument("--buildbot-url", dest="buildbot_url", default=BUILDBOT_URL)
     parser.add_argument("--repo-url", dest="repo_url", default=REPO_URL)
     parser.add_argument("--pattern", dest="pattern", nargs="*", default=PATTERN)
-    parser.add_argument("--status", dest="status", nargs="*")
+    parser.add_argument("--always-status", dest="always_status", nargs="*", default=ALWAYS_STATUS)
     parser.add_argument("--since-minutes", type=int, dest="since_minutes", default=SINCE_MINUTES)
     parser.add_argument("--latest-n-builds", type=int, dest="latest_n_builds", default=LATEST_N_BUILDS)
     parser.add_argument("--output-as", type=str, dest="output_as", default=OUTPUT_AS)
