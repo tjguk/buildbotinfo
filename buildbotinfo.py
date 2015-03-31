@@ -5,6 +5,15 @@ import os, sys
 import datetime
 import json
 import logging
+import smtplib
+try:
+    from email.Message import Message
+    from email.MIMEMultipart import MIMEMultipart
+    from email.MIMEText import MIMEText
+except ImportError:
+    from email.message import Message
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
 
 import buildbotlib
 
@@ -173,10 +182,10 @@ def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, la
                 if build.finished_at < since:
                     continue
                 builds.append(build)
-            
+
             #
             # If a set of "always status" has been specified, then only return the builds
-            # if the status for all of them matches at least one of the set. 
+            # if the status for all of them matches at least one of the set.
             # This would most commonly be used for checking long-term red buildbots
             # (including FAIL, EXCEPTION and perhaps RETRY)
             #
@@ -198,6 +207,16 @@ def cli(
     builds = Builds(get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, latest_n_builds))
     mimetype, output = builds.output_as(output_as)
     print(output)
+
+def mailto():
+  message = MIMEMultipart ()
+  message.preamble = "You will not see this in a MIME-aware reader\r\n"
+  message['From'] = "mail@timgolden.me.uk"
+  message['To'] = "mail@timgolden.me.uk"
+  message['Subject'] = "Test"
+  message_text = "abc"
+  message.attach(MIMEText(message_text, "plain", "utf-8"))
+  return smtplib.SMTP().sendmail("mail@timgolden.me.uk", ["mail@timgolden.me.uk"], message.as_string ())
 
 if __name__ == "__main__":
     logging.getLogger("buildbot").addHandler(logging.StreamHandler())
