@@ -6,8 +6,6 @@ import datetime
 import json
 import logging
 
-from bottle import route, run, template, request, response
-
 import buildbotlib
 
 #
@@ -20,45 +18,6 @@ STATUS = None
 SINCE_MINUTES = None
 LATEST_N_BUILDS = 1
 OUTPUT_AS = "text"
-
-@route('/')
-def index():
-    params = request.params
-    pattern = params.get("pattern", "*")
-    only_failures = bool(int(params.get("only-failures", 0)))
-    since_minutes = params.get("since-minutes")
-
-    python_buildbot = buildbotlib.Buildbot(buildbot_url)
-    builders = python_buildbot.builders("*" + pattern + "*")
-    builds = []
-    for builder in builders:
-        latest_build = builder.last_build()
-        if latest_build is None:
-            continue
-        if only_failures and latest_build.result == "success":
-            continue
-        if latest_build.finished_at < since:
-            continue
-        builds.append(latest_build)
-
-    return template("""
-<html>
-<head>
-<title>Buildbot: {{buildbot}}</title>
-</head>
-<body>
-<h1>{{buildbot}}</h1>
-% for build in builds:
-<h2>{{build.builder}}</h2>
-<h3>{{build.__repr__()}}</h3>
-% end
-</body>
-</html>
-    """, buildbot=python_buildbot, builds=builds)
-
-@route("/feed/")
-def feed():
-    return ""
 
 def with_mimetype(mimetype):
     """Decorate a function which will be yielding lines of text.
@@ -239,5 +198,3 @@ if __name__ == "__main__":
     parser.add_argument("--latest-n-builds", type=int, dest="latest_n_builds", default=LATEST_N_BUILDS)
     parser.add_argument("--output-as", type=str, dest="output_as", default=OUTPUT_AS)
     cli(**vars(parser.parse_args()))
-
-## run(host='localhost', port=8080, debug=True)
