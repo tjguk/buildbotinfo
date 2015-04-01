@@ -8,10 +8,12 @@ import logging
 import smtplib
 try:
     from email.Message import Message
+    from email.MIMEBase import MIMEBase
     from email.MIMEMultipart import MIMEMultipart
     from email.MIMEText import MIMEText
 except ImportError:
     from email.message import Message
+    from email.mime.base import MIMEBase
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
@@ -27,6 +29,7 @@ ALWAYS_STATUS = None
 SINCE_MINUTES = None
 LATEST_N_BUILDS = 1
 OUTPUT_AS = "text"
+FOR_EMAIL = False
 
 def with_mimetype(mimetype):
     """Decorate a function which will be yielding lines of text.
@@ -195,6 +198,18 @@ def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, la
                 for b in builds:
                     yield b
 
+def to_email(mimetype, content):
+    maintype, subtype = mimetype.split("/")
+    message = MIMEMultipart ()
+    message['Subject'] = "Buildbot info"
+    if maintype == "text":
+        message_part = MIMEText(content, subtype, "utf-8")
+    else:
+        message_part = MIMEBase(maintype, subtype)
+        message_part.set_payload(content)
+    message.attach(message_part)
+    return message.as_string()
+
 def cli(
     buildbot_url=BUILDBOT_URL,
     repo_url=REPO_URL,
@@ -202,21 +217,16 @@ def cli(
     always_status=ALWAYS_STATUS,
     since_minutes=SINCE_MINUTES,
     latest_n_builds=LATEST_N_BUILDS,
-    output_as="text"
+    output_as=OUTPUT_AS,
+    for_email=FOR_EMAIL
 ):
     builds = Builds(get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, latest_n_builds))
     mimetype, output = builds.output_as(output_as)
-    print(output)
-
-def mailto():
-  message = MIMEMultipart ()
-  message.preamble = "You will not see this in a MIME-aware reader\r\n"
-  message['From'] = "mail@timgolden.me.uk"
-  message['To'] = "mail@timgolden.me.uk"
-  message['Subject'] = "Test"
-  message_text = "abc"
-  message.attach(MIMEText(message_text, "plain", "utf-8"))
-  return smtplib.SMTP().sendmail("mail@timgolden.me.uk", ["mail@timgolden.me.uk"], message.as_string ())
+    if for_email:
+        text = to_email(mimetype, output)
+    else:
+        text = output
+    sys.stdout.write(output)
 
 if __name__ == "__main__":
     logging.getLogger("buildbot").addHandler(logging.StreamHandler())
@@ -229,4 +239,5 @@ if __name__ == "__main__":
     parser.add_argument("--since-minutes", type=int, dest="since_minutes", default=SINCE_MINUTES)
     parser.add_argument("--latest-n-builds", type=int, dest="latest_n_builds", default=LATEST_N_BUILDS)
     parser.add_argument("--output-as", type=str, dest="output_as", default=OUTPUT_AS)
+    parser.add_argument("--for-email", dest="for_email", action="store_true")
     cli(**vars(parser.parse_args()))
