@@ -113,7 +113,7 @@ always-status
     If specified, will return only builds from those builders where all the builds considered
     match one of the status. Typically this will be FAILED to show always-red builders.
     
-    **Example:** Failed Exception
+    **Example:** Failure
 
 since-minutes
     (Optional, Default: no time limit)
@@ -134,3 +134,18 @@ for-email
     (Optional, Default: No)
     Output will be formatted as a MIME Message, suitable for piping to a sendmail command
     or some other mailer.
+
+Examples
+~~~~~~~~
+
+* Show the latest status of all Windows builders::
+
+    buildbotinfo.py --pattern *Windows* *XP* --latest-n-builds=1
+
+* Show the Solaris builders which have been red for their last three builds::
+
+    buildbotinfo.py --pattern *Solaris* --latest-n-builds=3 --always-status Failure Exception
+
+* Show all the builds over the last two days::
+
+    buildbotinfo.py --since-minutes=2880 
