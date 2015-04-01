@@ -11,13 +11,13 @@ tl;dr
 
 You can schedule a command-line to show a pattern of buildbot status::
 
-  buildbotinfo.py --pattern *Windows* *XP* --output-as=html
+  buildbotinfo.py --pattern "*Windows*" "*XP*" --output-as=html
   
 I have a cron job running which sends me an HTML email with the current
 status of all Windows buildbots::
 
   python3 ~/work-in-progress/buildbotinfo/buildbotinfo.py \
-  --pattern *Windows* *XP* --output-as=html --for-email \
+  --pattern "*Windows*" "*XP*" --output-as=html --for-email \
  | sendmail mail@timgolden.me.uk
   
 
@@ -106,7 +106,7 @@ pattern
     (Multiple, Optional, Default: all) 
     None or more builder names, using fnmatch wildcards.
     
-    **Example:** *Windows* *XP* [will find all windows builders]
+    **Example:** \*Windows\* \*XP\* [will find all windows builders]
     
 always-status
     (Multiple, Optional)
@@ -140,11 +140,11 @@ Examples
 
 * Show the latest status of all Windows builders::
 
-    buildbotinfo.py --pattern *Windows* *XP*
+    buildbotinfo.py --pattern "*Windows*" "*XP*"
 
 * Show the Solaris builders which have been red for their last three builds::
 
-    buildbotinfo.py --pattern *Solaris* --latest-n-builds=3 --always-status Failure Exception
+    buildbotinfo.py --pattern "*Solaris*" --latest-n-builds=3 --always-status Failure Exception
 
 * Show all the builds over the last two days::
 
