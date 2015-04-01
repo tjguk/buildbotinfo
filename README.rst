@@ -140,7 +140,7 @@ Examples
 
 * Show the latest status of all Windows builders::
 
-    buildbotinfo.py --pattern *Windows* *XP* --latest-n-builds=1
+    buildbotinfo.py --pattern *Windows* *XP*
 
 * Show the Solaris builders which have been red for their last three builds::
 
