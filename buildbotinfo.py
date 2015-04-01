@@ -229,7 +229,7 @@ def cli(
     sys.stdout.write(text)
 
 if __name__ == "__main__":
-    logging.getLogger("buildbot").addHandler(logging.StreamHandler())
+    logging.getLogger("buildbot").addHandler(logging.NullHandler())
     import argparse
     parser = argparse.ArgumentParser("Show Buildbot info")
     parser.add_argument("--buildbot-url", dest="buildbot_url", default=BUILDBOT_URL)
