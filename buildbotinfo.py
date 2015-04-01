@@ -168,7 +168,9 @@ def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, la
     # can be a list whose results should be combined
     #
     patterns = pattern if isinstance(pattern, list) else [pattern]
-    always_statuses = set(always_status if isinstance(always_status, list) else [always_status])
+    if not isinstance(always_status, list):
+        always_status = [always_status]
+    always_statuses = set(a.lower() for a in always_status)
     if since_minutes is None:
         since = datetime.datetime.min
     else:
@@ -192,7 +194,7 @@ def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, la
             # This would most commonly be used for checking long-term red buildbots
             # (including FAIL, EXCEPTION and perhaps RETRY)
             #
-            if always_status and not all(build.result in always_status for build in builds):
+            if always_status and not all(build.result.lower() in always_status for build in builds):
                 continue
             else:
                 for b in builds:
