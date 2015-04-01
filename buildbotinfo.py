@@ -226,7 +226,7 @@ def cli(
         text = to_email(mimetype, output)
     else:
         text = output
-    sys.stdout.write(output)
+    sys.stdout.write(text)
 
 if __name__ == "__main__":
     logging.getLogger("buildbot").addHandler(logging.StreamHandler())
