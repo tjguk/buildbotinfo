@@ -168,7 +168,9 @@ def get_builds(buildbot_url, repo_url, pattern, always_status, since_minutes, la
     # can be a list whose results should be combined
     #
     patterns = pattern if isinstance(pattern, list) else [pattern]
-    if not isinstance(always_status, list):
+    if always_status is None:
+        always_status = []
+    elif not isinstance(always_status, list):
         always_status = [always_status]
     always_statuses = set(a.lower() for a in always_status)
     if since_minutes is None:
